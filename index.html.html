@@ -1,0 +1,1865 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#A8552C" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Lia Laser & Beleza" />
+<title>Lia Laser & Beleza — Sistema de Gestão</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><circle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23A8552C%22/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><circle cx=%2232%22 cy=%2232%22 r=%2232%22 fill=%22%23A8552C%22/></svg>">
+
+<!-- ======================================================================
+     FIREBASE (opcional): preencha as chaves do SEU projeto abaixo para os
+     dados ficarem salvos na nuvem (sincronizados entre computador e celular,
+     mesmo saindo e entrando de novo). Deixe tudo em branco para o sistema
+     continuar funcionando salvando só neste navegador.
+     Onde pegar as chaves: console.firebase.google.com → seu projeto →
+     ⚙️ Configurações do projeto → Seus apps → Web (</>) 
+     ====================================================================== -->
+<script>
+  window.FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCyxQSHselAkxUAnKmA7kZEPDYIFUqoRMI",
+    authDomain: "lia-sistema-e1182.firebaseapp.com",
+    projectId: "lia-sistema-e1182",
+    storageBucket: "lia-sistema-e1182.firebasestorage.app",
+    messagingSenderId: "232990268304",
+    appId: "1:232990268304:web:070af5d1ec61adad46f115"
+  };
+</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+  (function () {
+    var c = window.FIREBASE_CONFIG;
+    if (c && c.apiKey && c.projectId) {
+      firebase.initializeApp(c);
+      window.__firebaseDB = firebase.firestore();
+      console.log("Lia Sistema: conectado ao Firebase ✔");
+    } else {
+      console.log("Lia Sistema: Firebase não configurado — salvando localmente neste navegador.");
+    }
+  })();
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.6/babel.min.js"></script>
+<script>
+  // Silencia o aviso informativo do Tailwind sobre uso via CDN (inofensivo, não afeta o funcionamento)
+  (function () {
+    var originalWarn = console.warn;
+    console.warn = function () {
+      if (typeof arguments[0] === "string" && arguments[0].indexOf("cdn.tailwindcss.com") !== -1) return;
+      originalWarn.apply(console, arguments);
+    };
+  })();
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  input[type=checkbox] { accent-color: #A8552C; }
+  body { margin: 0; overscroll-behavior-y: none; }
+  input, select, textarea, button { font-size: 16px; } /* evita zoom automático no iOS */
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback, useMemo, useRef } = React;
+
+/* ---------- Ícones (emoji, sem dependências externas) ---------- */
+const ICON_MAP = {
+  LayoutDashboard: "📊", Users: "👥", Scissors: "✂️", Package: "📦",
+  ShoppingCart: "🛒", SettingsIcon: "⚙️", LogOut: "🚪", Plus: "＋",
+  Trash2: "🗑️", Pencil: "✏️", X: "✕", Search: "🔍", Upload: "⬆️",
+  Percent: "%", Clock: "🕐", Shield: "🛡️", ChevronRight: "›", Check: "✓",
+  AlertTriangle: "⚠️", TrendingUp: "📈", Wallet: "👛", UserPlus: "➕",
+  Save: "💾", CreditCard: "💳", Banknote: "💵", QrCode: "▦", Minus: "−",
+  Eye: "👁", EyeOff: "🙈", Calendar: "📅", CalendarPlus: "🗓️",
+  Receipt: "🧾", TrendingDown: "📉", Palette: "🎨", RotateCcw: "↺",
+};
+function Icon({ name, size = 16, className = "" }) {
+  return (
+    <span className={className} style={{ fontSize: size, lineHeight: 1, display: "inline-block" }}>
+      {ICON_MAP[name] || "•"}
+    </span>
+  );
+}
+
+/* ---------- Persistência: Firebase (nuvem) com fallback para localStorage ----------
+   Se você preencher window.FIREBASE_CONFIG (no <head> do HTML) com as chaves do
+   seu projeto Firebase, os dados passam a salvar no Firestore — sincronizados
+   entre qualquer computador/celular que acessar o sistema, mesmo saindo e
+   entrando de novo. Sem preencher, continua funcionando 100% no navegador local. */
+async function load(key, fallback) {
+  if (window.__firebaseDB) {
+    try {
+      const snap = await window.__firebaseDB.collection("lia-sistema").doc(key).get();
+      return snap.exists ? snap.data().value : fallback;
+    } catch (e) { console.error("Firestore (load) falhou, usando localStorage:", e); }
+  }
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch { return fallback; }
+}
+async function save(key, value) {
+  if (window.__firebaseDB) {
+    try {
+      await window.__firebaseDB.collection("lia-sistema").doc(key).set({ value });
+      return;
+    } catch (e) { console.error("Firestore (save) falhou, usando localStorage:", e); }
+  }
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { console.error(e); }
+}
+
+/* ---------- Design tokens (valores padrão de marca) ----------
+   clay      #A8552C  primária
+   clay-dark #7A3B1D  primária escura
+   cream     #FBF5EE  fundo da página
+   cream-2   #F3E6D8  fundo de painéis
+   ink       #2E1D14  texto principal
+   blush     #F1D2C0  acento suave
+   brick     #B23B3B  perigo/exclusão
+   Tudo isso agora é editável em Configurações → Aparência.
+------------------------------------ */
+
+const DEFAULT_THEME = {
+  colors: {
+    clay: "#A8552C", clayDark: "#7A3B1D", cream3: "#EAD5BF",
+    cream: "#FBF5EE", cream2: "#F3E6D8",
+    ink: "#2E1D14", inkSoft: "#5C4632", muted: "#8A6E5C", muted2: "#B98457", muted3: "#C9A585",
+    border: "#E4D3C1", borderSoft: "#F0E3D4",
+    danger: "#B23B3B", dangerSoft: "#FBEAE9",
+    success: "#4C7A4C", successSoft: "#EAF2E9",
+    blush: "#F1D2C0", scrollbar: "#D9C4B0",
+  },
+  fontDisplay: "Fraunces",
+  fontBody: "Inter",
+};
+
+const FONT_OPTIONS_DISPLAY = ["Fraunces", "Playfair Display", "Cormorant Garamond", "Poppins", "DM Serif Display"];
+const FONT_OPTIONS_BODY = ["Inter", "Poppins", "Nunito", "Roboto", "Work Sans"];
+
+const THEME_LABELS = [
+  { group: "Marca", keys: [["clay", "Cor primária"], ["clayDark", "Primária escura (hover)"], ["cream3", "Destaque claro (hover suave)"]] },
+  { group: "Fundo", keys: [["cream", "Fundo da página"], ["cream2", "Fundo dos painéis/cartões"]] },
+  { group: "Texto", keys: [["ink", "Texto principal"], ["inkSoft", "Texto secundário"], ["muted", "Texto terciário"], ["muted2", "Texto claro/legenda"], ["muted3", "Ícones neutros"]] },
+  { group: "Bordas", keys: [["border", "Borda de campos"], ["borderSoft", "Borda de cartões"]] },
+  { group: "Status", keys: [["success", "Sucesso"], ["successSoft", "Sucesso (fundo)"], ["danger", "Alerta/exclusão"], ["dangerSoft", "Alerta (fundo)"]] },
+  { group: "Outros", keys: [["blush", "Acento suave"], ["scrollbar", "Barra de rolagem"]] },
+];
+
+function buildThemeCSS(theme) {
+  const c = { ...DEFAULT_THEME.colors, ...(theme?.colors || {}) };
+  const fontDisplay = theme?.fontDisplay || DEFAULT_THEME.fontDisplay;
+  const fontBody = theme?.fontBody || DEFAULT_THEME.fontBody;
+  return `
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Playfair+Display:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Serif+Display&family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Work+Sans:wght@400;500;600;700&display=swap');
+:root {
+  --clay: ${c.clay}; --clay-dark: ${c.clayDark}; --cream-3: ${c.cream3};
+  --cream: ${c.cream}; --cream-2: ${c.cream2};
+  --ink: ${c.ink}; --ink-soft: ${c.inkSoft}; --muted: ${c.muted}; --muted-2: ${c.muted2}; --muted-3: ${c.muted3};
+  --border: ${c.border}; --border-soft: ${c.borderSoft};
+  --danger: ${c.danger}; --danger-soft: ${c.dangerSoft};
+  --success: ${c.success}; --success-soft: ${c.successSoft};
+  --blush: ${c.blush}; --scrollbar: ${c.scrollbar};
+}
+* { font-family: '${fontBody}', sans-serif; box-sizing: border-box; }
+.font-display { font-family: '${fontDisplay}', serif; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 8px; }
+input[type=checkbox] { accent-color: var(--clay); }
+body { background: var(--cream); }
+`;
+}
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+const money = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const today = () => new Date().toISOString().slice(0, 10);
+
+const DEFAULT_SETTINGS = {
+  clinicName: "Lia Laser & Beleza",
+  logo: null,
+  address: "Jardim Brasília",
+  whatsapp: "5561991441919",
+  hours: {
+    seg: { open: true, from: "09:00", to: "19:00" },
+    ter: { open: true, from: "09:00", to: "19:00" },
+    qua: { open: true, from: "09:00", to: "19:00" },
+    qui: { open: true, from: "09:00", to: "19:00" },
+    sex: { open: true, from: "09:00", to: "19:00" },
+    sab: { open: true, from: "09:00", to: "14:00" },
+    dom: { open: false, from: "09:00", to: "13:00" },
+  },
+  fees: { debito: 1.99, creditoVista: 3.99, creditoParcelado: 4.99, pix: 0 },
+  passFeeToClient: true,
+  theme: DEFAULT_THEME,
+  users: [
+    { id: uid(), name: "Administrador", username: "admin", password: "admin123", role: "admin",
+      perms: { dashboard: true, clientes: true, agenda: true, servicos: true, estoque: true, caixa: true, vendas: true, despesas: true, configuracoes: true } },
+  ],
+};
+
+const MODULES = [
+  { key: "dashboard", label: "Painel" },
+  { key: "clientes", label: "Clientes" },
+  { key: "agenda", label: "Agenda" },
+  { key: "servicos", label: "Serviços" },
+  { key: "estoque", label: "Estoque" },
+  { key: "caixa", label: "Frente de Caixa" },
+  { key: "vendas", label: "Vendas" },
+  { key: "despesas", label: "Despesas" },
+  { key: "configuracoes", label: "Configurações" },
+];
+
+const WEEKDAYS = [["seg","Segunda"],["ter","Terça"],["qua","Quarta"],["qui","Quinta"],["sex","Sexta"],["sab","Sábado"],["dom","Domingo"]];
+
+
+
+/* ---------------- Shared UI bits ---------------- */
+
+function Btn({ children, variant = "primary", className = "", ...props }) {
+  const styles = {
+    primary: "bg-[var(--clay)] text-white hover:bg-[var(--clay-dark)]",
+    ghost: "bg-transparent text-[var(--clay-dark)] hover:bg-[var(--cream-2)]",
+    danger: "bg-transparent text-[var(--danger)] hover:bg-[var(--danger-soft)]",
+    soft: "bg-[var(--cream-2)] text-[var(--clay-dark)] hover:bg-[var(--cream-3)]",
+  };
+  return (
+    <button
+      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${styles[variant]} ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function Input(props) {
+  return (
+    <input
+      {...props}
+      className={`w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm text-[var(--ink)] outline-none focus:border-[var(--clay)] focus:ring-2 focus:ring-[var(--clay)]/15 ${props.className || ""}`}
+    />
+  );
+}
+
+function Modal({ title, onClose, children, wide }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className={`max-h-[90vh] w-full ${wide ? "max-w-2xl" : "max-w-md"} overflow-y-auto rounded-2xl bg-white shadow-2xl`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 flex items-center justify-between border-b border-[var(--border-soft)] bg-white px-6 py-4">
+          <h3 className="font-display text-lg font-semibold text-[var(--ink)]">{title}</h3>
+          <button onClick={onClose} className="rounded-full p-1.5 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="X" size={18} /></button>
+        </div>
+        <div className="p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Editor de imagem (zoom / recorte) ---------------- */
+
+function ImageCropper({ file, viewportW = 280, viewportH = 280, outW = 480, outH = 480, round = false, title = "Ajustar imagem", onConfirm, onCancel }) {
+  const [imgSrc, setImgSrc] = useState(null);
+  const [natural, setNatural] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef(null);
+
+  useEffect(() => {
+    const reader = new FileReader();
+    reader.onload = () => setImgSrc(reader.result);
+    reader.readAsDataURL(file);
+  }, [file]);
+
+  const baseScale = natural ? Math.max(viewportW / natural.w, viewportH / natural.h) : 1;
+  const scale = baseScale * zoom;
+  const dispW = natural ? natural.w * scale : 0;
+  const dispH = natural ? natural.h * scale : 0;
+
+  const clamp = (ox, oy, dw, dh) => {
+    const maxX = Math.max(0, (dw - viewportW) / 2);
+    const maxY = Math.max(0, (dh - viewportH) / 2);
+    return { x: Math.min(maxX, Math.max(-maxX, ox)), y: Math.min(maxY, Math.max(-maxY, oy)) };
+  };
+
+  const onImgLoad = (e) => {
+    setNatural({ w: e.target.naturalWidth, h: e.target.naturalHeight });
+    setZoom(1); setOffset({ x: 0, y: 0 });
+  };
+
+  const startDrag = (x, y) => { dragRef.current = { startX: x, startY: y, offX: offset.x, offY: offset.y }; };
+  const moveDrag = (x, y) => {
+    if (!dragRef.current) return;
+    const dx = x - dragRef.current.startX, dy = y - dragRef.current.startY;
+    setOffset(clamp(dragRef.current.offX + dx, dragRef.current.offY + dy, dispW, dispH));
+  };
+  const endDrag = () => { dragRef.current = null; };
+
+  const onZoom = (z) => {
+    setZoom(z);
+    if (natural) setOffset((o) => clamp(o.x, o.y, natural.w * baseScale * z, natural.h * baseScale * z));
+  };
+
+  const confirm = () => {
+    if (!natural) return;
+    const cropX = (dispW - viewportW) / 2 - offset.x;
+    const cropY = (dispH - viewportH) / 2 - offset.y;
+    const sx = Math.max(0, Math.min(natural.w, cropX / scale));
+    const sy = Math.max(0, Math.min(natural.h, cropY / scale));
+    const sw = Math.max(1, Math.min(natural.w - sx, viewportW / scale));
+    const sh = Math.max(1, Math.min(natural.h - sy, viewportH / scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = outW; canvas.height = outH;
+    const ctx = canvas.getContext("2d");
+    const img = new window.Image();
+    img.onload = () => {
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+      onConfirm(canvas.toDataURL("image/jpeg", 0.9));
+    };
+    img.src = imgSrc;
+  };
+
+  return (
+    <Modal title={title} onClose={onCancel}>
+      <div className="flex flex-col items-center gap-4">
+        <div
+          className="relative overflow-hidden bg-[var(--cream-2)]"
+          style={{ width: viewportW, height: viewportH, borderRadius: round ? "9999px" : "16px", touchAction: "none", cursor: "grab", userSelect: "none" }}
+          onMouseDown={(e) => startDrag(e.clientX, e.clientY)}
+          onMouseMove={(e) => moveDrag(e.clientX, e.clientY)}
+          onMouseUp={endDrag}
+          onMouseLeave={endDrag}
+          onTouchStart={(e) => startDrag(e.touches[0].clientX, e.touches[0].clientY)}
+          onTouchMove={(e) => moveDrag(e.touches[0].clientX, e.touches[0].clientY)}
+          onTouchEnd={endDrag}
+        >
+          {imgSrc && (
+            <img
+              src={imgSrc}
+              onLoad={onImgLoad}
+              draggable={false}
+              alt=""
+              style={{
+                position: "absolute", left: "50%", top: "50%", maxWidth: "none",
+                width: dispW || "auto", height: dispH || "auto",
+                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+              }}
+            />
+          )}
+          {!natural && <div className="flex h-full items-center justify-center text-xs text-[var(--muted)]">Carregando...</div>}
+        </div>
+        <div className="flex w-full items-center gap-3">
+          <span className="text-xs text-[var(--muted)]">−</span>
+          <input type="range" min="1" max="3" step="0.01" value={zoom} onChange={(e) => onZoom(Number(e.target.value))} className="w-full accent-[var(--clay)]" />
+          <span className="text-xs text-[var(--muted)]">+</span>
+        </div>
+        <p className="text-center text-xs text-[var(--muted)]">Arraste a imagem para posicionar e use o controle deslizante para dar zoom.</p>
+        <div className="flex w-full gap-2">
+          <Btn variant="soft" className="flex-1" onClick={onCancel}>Cancelar</Btn>
+          <Btn className="flex-1" onClick={confirm} disabled={!natural}><Icon name="Check" size={16} /> Usar imagem</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function Empty({ icon, text }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--cream)] py-16 text-center">
+      <Icon name={icon} size={28} className="text-[var(--muted-3)]" />
+      <p className="text-sm text-[var(--muted)]">{text}</p>
+    </div>
+  );
+}
+
+/* ---------------- Login ---------------- */
+
+function Login({ settings, onLogin }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = (e) => {
+    e.preventDefault();
+    const u = settings.users.find(
+      (x) => x.username.toLowerCase() === username.trim().toLowerCase() && x.password === password
+    );
+    if (u) onLogin(u);
+    else setError("Usuário ou senha inválidos.");
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[var(--cream)] to-[var(--blush)]/60 px-4">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-xl shadow-[var(--clay)]/10">
+        <div className="mb-6 flex flex-col items-center">
+          {settings.logo ? (
+            <img src={settings.logo} alt="logo" className="mb-4 h-20 w-20 rounded-full object-cover ring-4 ring-[var(--cream-2)]" />
+          ) : (
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[var(--clay)] ring-4 ring-[var(--cream-2)]">
+              <Icon name="Scissors" size={30} className="text-white" />
+            </div>
+          )}
+          <h1 className="font-display text-2xl font-semibold text-[var(--ink)]">{settings.clinicName}</h1>
+          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-[var(--muted-2)]">Sistema de gestão</p>
+        </div>
+        <form onSubmit={submit} className="space-y-4">
+          <Field label="Usuário">
+            <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="admin" autoFocus />
+          </Field>
+          <Field label="Senha">
+            <div className="relative">
+              <Input type={show ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="pr-10" />
+              <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-2)]">
+                {show ? <Icon name="EyeOff" size={16} /> : <Icon name="Eye" size={16} />}
+              </button>
+            </div>
+          </Field>
+          {error && <p className="text-xs font-medium text-[var(--danger)]">{error}</p>}
+          <Btn type="submit" className="w-full">Entrar</Btn>
+        </form>
+        <p className="mt-6 text-center text-[10px] leading-relaxed text-[var(--muted-2)]">
+          Acesso padrão: <b>admin</b> / <b>admin123</b><br />Altere em Configurações → Usuários.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Dashboard ---------------- */
+
+const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+function Dashboard({ clients, services, inventory, sales, expenses }) {
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth()); // 0-11
+  const [year, setYear] = useState(now.getFullYear());
+  const isCurrentMonth = month === now.getMonth() && year === now.getFullYear();
+
+  const ym = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const salesMonth = sales.filter((s) => s.date.startsWith(ym));
+  const expensesMonth = expenses.filter((e) => e.date.startsWith(ym));
+
+  const totalMonth = salesMonth.reduce((a, s) => a + s.total, 0);
+  const netMonth = salesMonth.reduce((a, s) => a + s.netReceived, 0);
+  const totalExpenses = expensesMonth.reduce((a, e) => a + Number(e.amount), 0);
+  const profit = netMonth - totalExpenses;
+  const ticket = salesMonth.length ? totalMonth / salesMonth.length : 0;
+  const lowStock = inventory.filter((i) => Number(i.qty) <= Number(i.min));
+
+  const cards = [
+    { label: "Faturamento do mês", value: money(totalMonth), icon: "TrendingUp" },
+    { label: "Despesas do mês", value: money(totalExpenses), icon: "TrendingDown" },
+    { label: "Lucro do mês", value: money(profit), icon: "Wallet" },
+    { label: "Vendas no mês", value: salesMonth.length, icon: "ShoppingCart" },
+    { label: "Ticket médio", value: money(ticket), icon: "Percent" },
+  ];
+
+  const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-semibold text-[var(--ink)]">Bem-vinda de volta ✨</h2>
+          <p className="text-sm text-[var(--muted)]">{isCurrentMonth ? "Resumo do mês atual" : "Resumo do mês selecionado"}</p>
+        </div>
+        <div className="flex gap-2">
+          <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--ink-soft)] outline-none focus:border-[var(--clay)]">
+            {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
+          </select>
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--ink-soft)] outline-none focus:border-[var(--clay)]">
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        {cards.map((c) => (
+          <div key={c.label} className="rounded-2xl border border-[var(--border-soft)] bg-white p-5 shadow-sm">
+            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--cream-2)] text-[var(--clay)]"><Icon name={c.icon} size={18} /></div>
+            <p className="font-display text-xl font-semibold text-[var(--ink)]">{c.value}</p>
+            <p className="text-xs text-[var(--muted)]">{c.label}</p>
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-[var(--border-soft)] bg-white p-5">
+          <h3 className="mb-3 font-display text-base font-semibold text-[var(--ink)]">Cadastros</h3>
+          <div className="space-y-2 text-sm text-[var(--ink-soft)]">
+            <div className="flex justify-between"><span>Clientes</span><b>{clients.length}</b></div>
+            <div className="flex justify-between"><span>Serviços</span><b>{services.length}</b></div>
+            <div className="flex justify-between"><span>Itens em estoque</span><b>{inventory.length}</b></div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-[var(--border-soft)] bg-white p-5">
+          <h3 className="mb-3 flex items-center gap-2 font-display text-base font-semibold text-[var(--ink)]">
+            <Icon name="AlertTriangle" size={16} className="text-[var(--danger)]" /> Estoque baixo
+          </h3>
+          {lowStock.length === 0 ? (
+            <p className="text-sm text-[var(--muted)]">Tudo certo por aqui.</p>
+          ) : (
+            <div className="space-y-2">
+              {lowStock.slice(0, 5).map((i) => (
+                <div key={i.id} className="flex justify-between text-sm">
+                  <span className="text-[var(--ink-soft)]">{i.name}</span>
+                  <span className="font-semibold text-[var(--danger)]">{i.qty} un.</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Clients ---------------- */
+
+const CLIENT_EMPTY = {
+  name: "", cpf: "", phone: "", email: "", birthday: "", gender: "",
+  cep: "", street: "", number: "", neighborhood: "", city: "", state: "",
+  howFound: "", allergies: "", notes: "",
+};
+
+function ClientFormFields({ form, setForm, compact }) {
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  return (
+    <div className="space-y-4">
+      <Field label="Nome completo"><Input required value={form.name} onChange={set("name")} /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Telefone / WhatsApp"><Input required value={form.phone} onChange={set("phone")} placeholder="(61) 99999-9999" /></Field>
+        <Field label="CPF"><Input value={form.cpf} onChange={set("cpf")} placeholder="000.000.000-00" /></Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="E-mail"><Input type="email" value={form.email} onChange={set("email")} /></Field>
+        <Field label="Data de nascimento"><Input type="date" value={form.birthday} onChange={set("birthday")} /></Field>
+      </div>
+      {!compact && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Gênero">
+              <select value={form.gender} onChange={set("gender")} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+                <option value="">Selecionar</option>
+                {["Feminino", "Masculino", "Outro", "Prefere não dizer"].map((g) => <option key={g}>{g}</option>)}
+              </select>
+            </Field>
+            <Field label="Como conheceu a clínica">
+              <select value={form.howFound} onChange={set("howFound")} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+                <option value="">Selecionar</option>
+                {["Instagram", "Indicação", "Google", "Passou na rua", "WhatsApp", "Outro"].map((g) => <option key={g}>{g}</option>)}
+              </select>
+            </Field>
+          </div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Endereço</p>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="CEP"><Input value={form.cep} onChange={set("cep")} /></Field>
+            <div className="col-span-2"><Field label="Rua"><Input value={form.street} onChange={set("street")} /></Field></div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Número"><Input value={form.number} onChange={set("number")} /></Field>
+            <Field label="Bairro"><Input value={form.neighborhood} onChange={set("neighborhood")} /></Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Cidade"><Input value={form.city} onChange={set("city")} /></Field>
+              <Field label="UF"><Input maxLength={2} value={form.state} onChange={set("state")} /></Field>
+            </div>
+          </div>
+          <Field label="Alergias / restrições">
+            <textarea value={form.allergies} onChange={set("allergies")} rows={2} placeholder="Ex: pele sensível, alergia a determinado produto..." className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]" />
+          </Field>
+          <Field label="Observações">
+            <textarea value={form.notes} onChange={set("notes")} rows={2} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]" />
+          </Field>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Clients({ clients, setClients }) {
+  const [modal, setModal] = useState(null);
+  const [q, setQ] = useState("");
+  const [view, setView] = useState(null);
+  const [form, setForm] = useState(CLIENT_EMPTY);
+
+  const filtered = clients.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()) || (c.phone || "").includes(q) || (c.cpf || "").includes(q));
+
+  const openNew = () => { setForm(CLIENT_EMPTY); setModal("edit"); };
+  const openEdit = (c) => { setForm({ ...CLIENT_EMPTY, ...c }); setModal("edit"); };
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (form.id) setClients(clients.map((c) => (c.id === form.id ? form : c)));
+    else setClients([{ ...form, id: uid(), createdAt: today() }, ...clients]);
+    setModal(null);
+  };
+
+  const remove = (id) => setClients(clients.filter((c) => c.id !== id));
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-2xl font-semibold text-[var(--ink)]">Clientes</h2>
+        <Btn onClick={openNew}><Icon name="Plus" size={16} /> Novo cliente</Btn>
+      </div>
+      <div className="relative max-w-sm">
+        <Icon name="Search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-2)]" />
+        <Input placeholder="Buscar por nome, telefone ou CPF" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
+      </div>
+      {filtered.length === 0 ? (
+        <Empty icon="Users" text="Nenhum cliente cadastrado ainda." />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--cream)] text-left text-xs uppercase tracking-wide text-[var(--muted)]">
+              <tr><th className="px-5 py-3">Nome</th><th className="px-5 py-3">Telefone</th><th className="px-5 py-3">Aniversário</th><th className="px-5 py-3"></th></tr>
+            </thead>
+            <tbody>
+              {filtered.map((c) => (
+                <tr key={c.id} className="cursor-pointer border-t border-[var(--border-soft)] hover:bg-[var(--cream)]/60" onClick={() => setView(c)}>
+                  <td className="px-5 py-3 font-medium text-[var(--ink)]">{c.name}</td>
+                  <td className="px-5 py-3 text-[var(--ink-soft)]">{c.phone || "—"}</td>
+                  <td className="px-5 py-3 text-[var(--ink-soft)]">{c.birthday || "—"}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => openEdit(c)} className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="Pencil" size={14} /></button>
+                      <button onClick={() => remove(c.id)} className="rounded-lg p-2 text-[var(--danger)] hover:bg-[var(--danger-soft)]"><Icon name="Trash2" size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {modal === "edit" && (
+        <Modal title={form.id ? "Editar cliente" : "Novo cliente"} onClose={() => setModal(null)} wide>
+          <form onSubmit={submit} className="space-y-4">
+            <ClientFormFields form={form} setForm={setForm} />
+            <Btn type="submit" className="w-full"><Icon name="Save" size={16} /> Salvar cliente</Btn>
+          </form>
+        </Modal>
+      )}
+      {view && (
+        <Modal title="Ficha do cliente" onClose={() => setView(null)} wide>
+          <div className="space-y-3 text-sm text-[var(--ink-soft)]">
+            <p className="font-display text-lg font-semibold text-[var(--ink)]">{view.name}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <p><b className="text-[var(--ink)]">Telefone:</b> {view.phone || "—"}</p>
+              <p><b className="text-[var(--ink)]">CPF:</b> {view.cpf || "—"}</p>
+              <p><b className="text-[var(--ink)]">E-mail:</b> {view.email || "—"}</p>
+              <p><b className="text-[var(--ink)]">Nascimento:</b> {view.birthday || "—"}</p>
+              <p><b className="text-[var(--ink)]">Gênero:</b> {view.gender || "—"}</p>
+              <p><b className="text-[var(--ink)]">Como conheceu:</b> {view.howFound || "—"}</p>
+            </div>
+            <p><b className="text-[var(--ink)]">Endereço:</b> {[view.street, view.number, view.neighborhood, view.city, view.state, view.cep].filter(Boolean).join(", ") || "—"}</p>
+            <p><b className="text-[var(--ink)]">Alergias / restrições:</b> {view.allergies || "—"}</p>
+            <p><b className="text-[var(--ink)]">Observações:</b> {view.notes || "—"}</p>
+            <Btn className="w-full" onClick={() => { setForm({ ...CLIENT_EMPTY, ...view }); setView(null); setModal("edit"); }}><Icon name="Pencil" size={15} /> Editar cadastro</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Services ---------------- */
+
+function ServicesPage({ services, setServices }) {
+  const [modal, setModal] = useState(null);
+  const [imgFile, setImgFile] = useState(null);
+  const empty = { name: "", category: "Laser", price: "", duration: "30", description: "", image: null };
+  const [form, setForm] = useState(empty);
+
+  const openNew = () => { setForm(empty); setModal("edit"); };
+  const submit = (e) => {
+    e.preventDefault();
+    const data = { ...form, price: Number(form.price) };
+    if (form.id) setServices(services.map((s) => (s.id === form.id ? data : s)));
+    else setServices([{ ...data, id: uid() }, ...services]);
+    setModal(null);
+  };
+  const remove = (id) => setServices(services.filter((s) => s.id !== id));
+  const onPickImage = (e) => {
+    const file = e.target.files[0];
+    if (file) setImgFile(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-2xl font-semibold text-[var(--ink)]">Serviços</h2>
+        <Btn onClick={openNew}><Icon name="Plus" size={16} /> Novo serviço</Btn>
+      </div>
+      {services.length === 0 ? (
+        <Empty icon="Scissors" text="Cadastre os serviços oferecidos pela clínica." />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {services.map((s) => (
+            <div key={s.id} className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-white">
+              {s.image ? (
+                <img src={s.image} alt={s.name} className="h-32 w-full object-cover" />
+              ) : (
+                <div className="flex h-32 w-full items-center justify-center bg-[var(--cream-2)] text-[var(--clay)]"><Icon name="Scissors" size={26} /></div>
+              )}
+              <div className="p-4">
+                <div className="mb-2 flex items-start justify-between">
+                  <span className="rounded-full bg-[var(--cream-2)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--clay)]">{s.category}</span>
+                  <div className="flex gap-1">
+                    <button onClick={() => { setForm({ ...empty, ...s }); setModal("edit"); }} className="rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="Pencil" size={13} /></button>
+                    <button onClick={() => remove(s.id)} className="rounded-lg p-1.5 text-[var(--danger)] hover:bg-[var(--danger-soft)]"><Icon name="Trash2" size={13} /></button>
+                  </div>
+                </div>
+                <p className="font-display text-base font-semibold text-[var(--ink)]">{s.name}</p>
+                {s.description && <p className="mt-1 line-clamp-2 text-xs text-[var(--muted)]">{s.description}</p>}
+                <div className="mt-2 flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-1 text-[var(--muted)]"><Icon name="Clock" size={13} /> {s.duration} min</span>
+                  <span className="font-semibold text-[var(--clay)]">{money(s.price)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal === "edit" && (
+        <Modal title={form.id ? "Editar serviço" : "Novo serviço"} onClose={() => setModal(null)}>
+          <form onSubmit={submit} className="space-y-4">
+            <div className="flex items-center gap-4">
+              {form.image ? <img src={form.image} className="h-16 w-16 rounded-xl object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-[var(--cream-2)] text-[var(--clay)]"><Icon name="Scissors" size={22} /></div>}
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center gap-2 rounded-xl bg-[var(--cream-2)] px-4 py-2 text-sm font-semibold text-[var(--clay-dark)] hover:bg-[var(--cream-3)]"><Icon name="Upload" size={14} /> Foto do serviço</span>
+                <input type="file" accept="image/*" className="hidden" onChange={onPickImage} />
+              </label>
+            </div>
+            <Field label="Nome do serviço"><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Categoria">
+                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+                  {["Laser", "Sobrancelha", "Micropigmentação", "Cílios", "Manicure", "Estética"].map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </Field>
+              <Field label="Duração (min)"><Input type="number" value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} /></Field>
+            </div>
+            <Field label="Preço (R$)"><Input type="number" step="0.01" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></Field>
+            <Field label="Descrição">
+              <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="O que o serviço inclui, indicações, cuidados..." className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]" />
+            </Field>
+            <Btn type="submit" className="w-full"><Icon name="Save" size={16} /> Salvar serviço</Btn>
+          </form>
+        </Modal>
+      )}
+
+      {imgFile && (
+        <ImageCropper
+          file={imgFile}
+          viewportW={280} viewportH={200} outW={640} outH={456}
+          title="Ajustar foto do serviço"
+          onCancel={() => setImgFile(null)}
+          onConfirm={(dataUrl) => { setForm((f) => ({ ...f, image: dataUrl })); setImgFile(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Agenda (agendamentos) ---------------- */
+
+const APPT_STATUS = {
+  agendado: { label: "Agendado", cls: "bg-[var(--cream-2)] text-[var(--clay)]" },
+  concluido: { label: "Concluído", cls: "bg-[var(--success-soft)] text-[var(--success)]" },
+  cancelado: { label: "Cancelado", cls: "bg-[var(--danger-soft)] text-[var(--danger)]" },
+};
+
+function Agenda({ appointments, setAppointments, clients, setClients, services }) {
+  const [modal, setModal] = useState(null);
+  const [dayFilter, setDayFilter] = useState(today());
+  const [showAll, setShowAll] = useState(false);
+  const [newClientModal, setNewClientModal] = useState(false);
+  const [newClientForm, setNewClientForm] = useState(CLIENT_EMPTY);
+
+  const empty = { clientId: "", serviceId: "", date: today(), time: "09:00", status: "agendado", notes: "" };
+  const [form, setForm] = useState(empty);
+
+  const openNew = (presetDate) => { setForm({ ...empty, date: presetDate || dayFilter }); setModal("edit"); };
+
+  const submit = (e) => {
+    e.preventDefault();
+    const client = clients.find((c) => c.id === form.clientId);
+    const service = services.find((s) => s.id === form.serviceId);
+    const data = { ...form, clientName: client?.name || "Cliente avulso", serviceName: service?.name || "" };
+    if (form.id) setAppointments(appointments.map((a) => (a.id === form.id ? data : a)));
+    else setAppointments([{ ...data, id: uid(), createdAt: today() }, ...appointments]);
+    setModal(null);
+  };
+
+  const setStatus = (id, status) => setAppointments(appointments.map((a) => (a.id === id ? { ...a, status } : a)));
+  const remove = (id) => setAppointments(appointments.filter((a) => a.id !== id));
+
+  const saveNewClient = (e) => {
+    e.preventDefault();
+    const c = { ...newClientForm, id: uid(), createdAt: today() };
+    setClients([c, ...clients]);
+    setForm({ ...form, clientId: c.id });
+    setNewClientModal(false);
+    setNewClientForm(CLIENT_EMPTY);
+  };
+
+  const list = (showAll ? appointments : appointments.filter((a) => a.date === dayFilter))
+    .slice()
+    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-2xl font-semibold text-[var(--ink)]">Agenda</h2>
+        <Btn onClick={() => openNew()}><Icon name="CalendarPlus" size={16} /> Novo agendamento</Btn>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Input type="date" value={dayFilter} onChange={(e) => { setDayFilter(e.target.value); setShowAll(false); }} className="w-auto" />
+        <button onClick={() => { setDayFilter(today()); setShowAll(false); }} className="rounded-xl bg-[var(--cream-2)] px-3.5 py-2 text-xs font-semibold text-[var(--clay-dark)]">Hoje</button>
+        <button onClick={() => setShowAll(!showAll)} className={`rounded-xl px-3.5 py-2 text-xs font-semibold ${showAll ? "bg-[var(--clay)] text-white" : "bg-[var(--cream-2)] text-[var(--clay-dark)]"}`}>Ver todos os dias</button>
+      </div>
+
+      {list.length === 0 ? (
+        <Empty icon="Calendar" text="Nenhum agendamento para esta data." />
+      ) : (
+        <div className="space-y-2">
+          {list.map((a) => (
+            <div key={a.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--border-soft)] bg-white p-4">
+              <div className="flex min-w-[70px] flex-col items-center rounded-xl bg-[var(--cream)] px-3 py-2">
+                <span className="font-display text-base font-semibold text-[var(--clay)]">{a.time}</span>
+                {showAll && <span className="text-[10px] text-[var(--muted-2)]">{new Date(a.date + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}</span>}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-[var(--ink)]">{a.clientName || "Cliente avulso"}</p>
+                <p className="truncate text-xs text-[var(--muted)]">{a.serviceName || "Sem serviço definido"}{a.notes ? ` · ${a.notes}` : ""}</p>
+              </div>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${APPT_STATUS[a.status].cls}`}>{APPT_STATUS[a.status].label}</span>
+              <div className="flex gap-1">
+                {a.status !== "concluido" && <button onClick={() => setStatus(a.id, "concluido")} title="Marcar como concluído" className="rounded-lg p-2 text-[var(--success)] hover:bg-[var(--success-soft)]"><Icon name="Check" size={15} /></button>}
+                {a.status !== "cancelado" && <button onClick={() => setStatus(a.id, "cancelado")} title="Cancelar" className="rounded-lg p-2 text-[var(--danger)] hover:bg-[var(--danger-soft)]"><Icon name="X" size={15} /></button>}
+                <button onClick={() => { setForm(a); setModal("edit"); }} className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="Pencil" size={14} /></button>
+                <button onClick={() => remove(a.id)} className="rounded-lg p-2 text-[var(--danger)] hover:bg-[var(--danger-soft)]"><Icon name="Trash2" size={14} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {modal === "edit" && (
+        <Modal title={form.id ? "Editar agendamento" : "Novo agendamento"} onClose={() => setModal(null)}>
+          <form onSubmit={submit} className="space-y-4">
+            <Field label="Cliente">
+              <div className="flex gap-2">
+                <select required value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+                  <option value="">Selecionar cliente</option>
+                  {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button type="button" onClick={() => setNewClientModal(true)} title="Cadastrar novo cliente" className="flex shrink-0 items-center justify-center rounded-lg bg-[var(--cream-2)] px-3 text-[var(--clay)] hover:bg-[var(--cream-3)]"><Icon name="UserPlus" size={16} /></button>
+              </div>
+            </Field>
+            <Field label="Serviço">
+              <select value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+                <option value="">Selecionar serviço</option>
+                {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Data"><Input type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
+              <Field label="Horário"><Input type="time" required value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} /></Field>
+            </div>
+            <Field label="Status">
+              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+                {Object.entries(APPT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Observações"><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Opcional" /></Field>
+            <Btn type="submit" className="w-full"><Icon name="Save" size={16} /> Salvar agendamento</Btn>
+          </form>
+        </Modal>
+      )}
+
+      {newClientModal && (
+        <Modal title="Novo cliente" onClose={() => setNewClientModal(false)} wide>
+          <form onSubmit={saveNewClient} className="space-y-4">
+            <ClientFormFields form={newClientForm} setForm={setNewClientForm} compact />
+            <Btn type="submit" className="w-full"><Icon name="Save" size={16} /> Salvar e selecionar</Btn>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Inventory ---------------- */
+
+const INV_CATEGORIES = ["Consumível (uso interno)", "Produto para revenda", "Equipamento", "Outro"];
+
+function InventoryPage({ inventory, setInventory }) {
+  const [modal, setModal] = useState(null);
+  const [filter, setFilter] = useState("Todos");
+  const empty = { name: "", category: "Consumível (uso interno)", unit: "un", qty: "", min: "5", cost: "", price: "", sellable: false };
+  const [form, setForm] = useState(empty);
+
+  const openNew = () => { setForm(empty); setModal("edit"); };
+  const submit = (e) => {
+    e.preventDefault();
+    const data = { ...form, qty: Number(form.qty) || 0, min: Number(form.min) || 0, cost: Number(form.cost) || 0, price: Number(form.price) || 0 };
+    if (form.id) setInventory(inventory.map((i) => (i.id === form.id ? data : i)));
+    else setInventory([{ ...data, id: uid() }, ...inventory]);
+    setModal(null);
+  };
+  const remove = (id) => setInventory(inventory.filter((i) => i.id !== id));
+
+  const filtered = filter === "Todos" ? inventory : inventory.filter((i) => i.category === filter);
+  const totalCostValue = inventory.reduce((a, i) => a + Number(i.qty) * Number(i.cost), 0);
+  const totalSaleValue = inventory.reduce((a, i) => a + Number(i.qty) * Number(i.price), 0);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-2xl font-semibold text-[var(--ink)]">Estoque</h2>
+        <Btn onClick={openNew}><Icon name="Plus" size={16} /> Novo item</Btn>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-[var(--border-soft)] bg-white p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Valor total em estoque (custo)</p>
+          <p className="mt-1 font-display text-2xl font-semibold text-[var(--ink)]">{money(totalCostValue)}</p>
+          <p className="mt-1 text-xs text-[var(--muted-2)]">Soma de quantidade × custo de todos os itens cadastrados.</p>
+        </div>
+        <div className="rounded-2xl border border-[var(--border-soft)] bg-white p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Valor potencial de venda</p>
+          <p className="mt-1 font-display text-2xl font-semibold text-[var(--clay)]">{money(totalSaleValue)}</p>
+          <p className="mt-1 text-xs text-[var(--muted-2)]">Soma de quantidade × preço de venda de todos os itens.</p>
+        </div>
+      </div>
+
+      <p className="text-sm text-[var(--muted)]">Aqui entra tudo que é usado no atendimento — consumíveis (luvas, algodão, géis) e produtos vendidos ao cliente. Marque "vender no PDV" para o item aparecer na Frente de Caixa.</p>
+
+      <div className="flex flex-wrap gap-2">
+        {["Todos", ...INV_CATEGORIES].map((c) => (
+          <button key={c} onClick={() => setFilter(c)} className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold ${filter === c ? "bg-[var(--clay)] text-white" : "bg-[var(--cream-2)] text-[var(--clay-dark)]"}`}>{c}</button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <Empty icon="Package" text="Cadastre produtos e consumíveis para controlar o estoque." />
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-[var(--border-soft)] bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--cream)] text-left text-xs uppercase tracking-wide text-[var(--muted)]">
+              <tr><th className="px-5 py-3">Item</th><th className="px-5 py-3">Categoria</th><th className="px-5 py-3">Qtd.</th><th className="px-5 py-3">Custo</th><th className="px-5 py-3">Venda</th><th className="px-5 py-3">PDV</th><th className="px-5 py-3"></th></tr>
+            </thead>
+            <tbody>
+              {filtered.map((i) => (
+                <tr key={i.id} className="border-t border-[var(--border-soft)] hover:bg-[var(--cream)]/60">
+                  <td className="px-5 py-3 font-medium text-[var(--ink)]">{i.name}</td>
+                  <td className="px-5 py-3 text-xs text-[var(--muted)]">{i.category}</td>
+                  <td className="px-5 py-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${i.qty <= i.min ? "bg-[var(--danger-soft)] text-[var(--danger)]" : "bg-[var(--success-soft)] text-[var(--success)]"}`}>{i.qty} {i.unit}</span>
+                  </td>
+                  <td className="px-5 py-3 text-[var(--ink-soft)]">{money(i.cost)}</td>
+                  <td className="px-5 py-3 text-[var(--ink-soft)]">{money(i.price)}</td>
+                  <td className="px-5 py-3">{i.sellable ? <span className="rounded-full bg-[var(--cream-2)] px-2 py-0.5 text-xs font-semibold text-[var(--clay)]">Sim</span> : <span className="text-xs text-[var(--muted-2)]">Não</span>}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex justify-end gap-1">
+                      <button onClick={() => { setForm(i); setModal("edit"); }} className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="Pencil" size={14} /></button>
+                      <button onClick={() => remove(i.id)} className="rounded-lg p-2 text-[var(--danger)] hover:bg-[var(--danger-soft)]"><Icon name="Trash2" size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {modal === "edit" && (
+        <Modal title={form.id ? "Editar item" : "Novo item"} onClose={() => setModal(null)}>
+          <form onSubmit={submit} className="space-y-4">
+            <Field label="Nome do item"><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Gel condutor, Esmalte, Luva descartável..." /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Categoria">
+                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+                  {INV_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </Field>
+              <Field label="Unidade">
+                <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+                  {["un", "ml", "g", "kg", "caixa", "par"].map((u) => <option key={u}>{u}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Quantidade"><Input type="number" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} /></Field>
+              <Field label="Estoque mínimo"><Input type="number" value={form.min} onChange={(e) => setForm({ ...form, min: e.target.value })} /></Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Custo (R$)"><Input type="number" step="0.01" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /></Field>
+              <Field label="Preço de venda (R$)"><Input type="number" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></Field>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-[var(--ink-soft)]">
+              <input type="checkbox" checked={form.sellable} onChange={(e) => setForm({ ...form, sellable: e.target.checked })} />
+              Vender no PDV (aparece na aba Produtos da Frente de Caixa)
+            </label>
+            <Btn type="submit" className="w-full"><Icon name="Save" size={16} /> Salvar item</Btn>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- POS / Frente de Caixa ---------------- */
+
+function POS({ services, inventory, setInventory, clients, setClients, sales, setSales, settings }) {
+  const [cart, setCart] = useState([]);
+  const [tab, setTab] = useState("servicos");
+  const [payment, setPayment] = useState("dinheiro");
+  const [clientId, setClientId] = useState("");
+  const [passFee, setPassFee] = useState(settings.passFeeToClient);
+  const [done, setDone] = useState(null);
+  const [catalogQ, setCatalogQ] = useState("");
+  const [newClientModal, setNewClientModal] = useState(false);
+  const [newClientForm, setNewClientForm] = useState(CLIENT_EMPTY);
+
+  const addItem = (item, type) => {
+    setCart((c) => {
+      const found = c.find((i) => i.refId === item.id && i.type === type);
+      if (found) return c.map((i) => (i === found ? { ...i, qty: i.qty + 1 } : i));
+      return [...c, { id: uid(), refId: item.id, type, name: item.name, price: item.price, qty: 1 }];
+    });
+  };
+  const changeQty = (id, delta) => setCart((c) => c.map((i) => (i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)).filter((i) => i.qty > 0));
+  const removeItem = (id) => setCart((c) => c.filter((i) => i.id !== id));
+
+  const subtotal = cart.reduce((a, i) => a + i.price * i.qty, 0);
+  const feeRate = payment === "debito" ? settings.fees.debito : payment === "creditoVista" ? settings.fees.creditoVista : payment === "creditoParcelado" ? settings.fees.creditoParcelado : payment === "pix" ? settings.fees.pix : 0;
+  const feeAmount = subtotal * (feeRate / 100);
+  const total = passFee ? subtotal + feeAmount : subtotal;
+  const netReceived = passFee ? subtotal : subtotal - feeAmount;
+
+  const finalize = () => {
+    if (cart.length === 0) return;
+    const sale = {
+      id: uid(), date: today(), time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      clientId, clientName: clients.find((c) => c.id === clientId)?.name || "Cliente avulso",
+      items: cart, subtotal, payment, feeRate, feeAmount, passFee, total, netReceived,
+    };
+    setSales([sale, ...sales]);
+    setInventory(inventory.map((i) => {
+      const used = cart.find((c) => c.type === "produto" && c.refId === i.id);
+      return used ? { ...i, qty: Math.max(0, i.qty - used.qty) } : i;
+    }));
+    setDone(sale);
+    setCart([]); setClientId(""); setPayment("dinheiro");
+  };
+
+  const saveNewClient = (e) => {
+    e.preventDefault();
+    const c = { ...newClientForm, id: uid(), createdAt: today() };
+    setClients([c, ...clients]);
+    setClientId(c.id);
+    setNewClientModal(false);
+    setNewClientForm(CLIENT_EMPTY);
+  };
+
+  const paymentOpts = [
+    { key: "dinheiro", label: "Dinheiro", icon: "Banknote" },
+    { key: "pix", label: "Pix", icon: "QrCode" },
+    { key: "debito", label: "Débito", icon: "CreditCard" },
+    { key: "creditoVista", label: "Crédito à vista", icon: "CreditCard" },
+    { key: "creditoParcelado", label: "Crédito parcelado", icon: "CreditCard" },
+  ];
+
+  const sellableProducts = inventory.filter((i) => i.sellable);
+  const allCatalog = [
+    ...services.map((s) => ({ ...s, kind: "servico" })),
+    ...sellableProducts.map((p) => ({ ...p, kind: "produto" })),
+  ];
+  const suggestions = catalogQ.trim()
+    ? allCatalog.filter((i) => i.name.toLowerCase().includes(catalogQ.trim().toLowerCase())).slice(0, 8)
+    : [];
+  const browseList = (tab === "servicos" ? services : sellableProducts);
+
+  const pickSuggestion = (item) => {
+    addItem(item, item.kind);
+    setCatalogQ("");
+  };
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
+      <div>
+        <h2 className="mb-1 font-display text-2xl font-semibold text-[var(--ink)]">Frente de Caixa</h2>
+        <p className="mb-4 text-xs text-[var(--muted)]">Itens vindos do catálogo de Serviços e dos produtos marcados como "vender no PDV" no Estoque.</p>
+
+        <div className="relative mb-4">
+          <Icon name="Search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-2)]" />
+          <Input
+            placeholder="Digite para buscar serviço ou produto, ex: Esfoliação"
+            value={catalogQ}
+            onChange={(e) => setCatalogQ(e.target.value)}
+            className="pl-9"
+            autoComplete="off"
+          />
+          {suggestions.length > 0 && (
+            <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-[var(--border)] bg-white shadow-lg">
+              {suggestions.map((item) => (
+                <button
+                  key={item.kind + item.id}
+                  onClick={() => pickSuggestion(item)}
+                  className="flex w-full items-center justify-between gap-3 border-b border-[var(--border-soft)] px-4 py-2.5 text-left last:border-0 hover:bg-[var(--cream)]"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    {item.image && <img src={item.image} className="h-6 w-6 shrink-0 rounded object-cover" />}
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${item.kind === "servico" ? "bg-[var(--cream-2)] text-[var(--clay)]" : "bg-[var(--success-soft)] text-[var(--success)]"}`}>
+                      {item.kind === "servico" ? "Serviço" : "Produto"}
+                    </span>
+                    <span className="truncate text-sm font-medium text-[var(--ink)]">{item.name}</span>
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold text-[var(--clay)]">{money(item.price)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {catalogQ.trim() && suggestions.length === 0 && (
+            <div className="absolute z-20 mt-1 w-full rounded-xl border border-[var(--border)] bg-white p-4 text-sm text-[var(--muted)] shadow-lg">
+              Nada encontrado no catálogo para "{catalogQ}".
+            </div>
+          )}
+        </div>
+
+        <div className="mb-3 flex gap-2">
+          <button onClick={() => setTab("servicos")} className={`rounded-xl px-4 py-2 text-sm font-semibold ${tab === "servicos" ? "bg-[var(--clay)] text-white" : "bg-[var(--cream-2)] text-[var(--clay-dark)]"}`}>Serviços</button>
+          <button onClick={() => setTab("produtos")} className={`rounded-xl px-4 py-2 text-sm font-semibold ${tab === "produtos" ? "bg-[var(--clay)] text-white" : "bg-[var(--cream-2)] text-[var(--clay-dark)]"}`}>Produtos</button>
+        </div>
+        <div className="grid max-h-[50vh] grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+          {browseList.map((item) => (
+            <button key={item.id} onClick={() => addItem(item, tab === "servicos" ? "servico" : "produto")}
+              className="flex items-center justify-between rounded-xl border border-[var(--border-soft)] bg-white px-4 py-3 text-left hover:border-[var(--clay)] hover:bg-[var(--cream)] active:scale-[0.98]">
+              <span className="flex min-w-0 items-center gap-2">
+                {item.image && <img src={item.image} className="h-8 w-8 shrink-0 rounded-lg object-cover" />}
+                <span className="truncate text-sm font-medium text-[var(--ink)]">{item.name}</span>
+              </span>
+              <span className="shrink-0 text-sm font-semibold text-[var(--clay)]">{money(item.price)}</span>
+            </button>
+          ))}
+          {browseList.length === 0 && (
+            <p className="col-span-2 text-sm text-[var(--muted)]">
+              {tab === "servicos" ? "Nenhum serviço cadastrado no catálogo ainda." : "Nenhum produto marcado como \"vender no PDV\" no Estoque."}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-[var(--border-soft)] bg-white p-5">
+        <h3 className="mb-3 font-display text-base font-semibold text-[var(--ink)]">Carrinho</h3>
+        <Field label="Cliente">
+          <div className="flex gap-2">
+            <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+              <option value="">Cliente avulso</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <button type="button" onClick={() => setNewClientModal(true)} title="Cadastrar novo cliente" className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--cream-2)] px-3 text-sm font-semibold text-[var(--clay)] hover:bg-[var(--cream-3)]">
+              <Icon name="UserPlus" size={16} /> Novo
+            </button>
+          </div>
+        </Field>
+
+        <div className="my-4 max-h-40 space-y-2 overflow-y-auto">
+          {cart.length === 0 && <p className="text-sm text-[var(--muted)]">Adicione serviços ou produtos.</p>}
+          {cart.map((i) => (
+            <div key={i.id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex-1 text-[var(--ink)]">{i.name}</span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => changeQty(i.id, -1)} className="rounded p-1 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="Minus" size={12} /></button>
+                <span className="w-5 text-center">{i.qty}</span>
+                <button onClick={() => changeQty(i.id, 1)} className="rounded p-1 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="Plus" size={12} /></button>
+              </div>
+              <span className="w-16 text-right font-medium text-[var(--ink)]">{money(i.price * i.qty)}</span>
+              <button onClick={() => removeItem(i.id)} className="text-[var(--danger)]"><Icon name="X" size={14} /></button>
+            </div>
+          ))}
+        </div>
+
+        <Field label="Forma de pagamento">
+          <div className="grid grid-cols-2 gap-2">
+            {paymentOpts.map((p) => (
+              <button key={p.key} onClick={() => setPayment(p.key)}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${payment === p.key ? "border-[var(--clay)] bg-[var(--cream)] text-[var(--clay)]" : "border-[var(--border)] text-[var(--ink-soft)]"}`}>
+                <Icon name={p.icon} size={14} /> {p.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {feeRate > 0 && (
+          <label className="mt-3 flex items-center gap-2 text-xs text-[var(--ink-soft)]">
+            <input type="checkbox" checked={passFee} onChange={(e) => setPassFee(e.target.checked)} />
+            Repassar taxa da maquininha ({feeRate}%) ao cliente
+          </label>
+        )}
+
+        <div className="mt-4 space-y-1.5 border-t border-[var(--border-soft)] pt-4 text-sm">
+          <div className="flex justify-between text-[var(--ink-soft)]"><span>Subtotal</span><span>{money(subtotal)}</span></div>
+          {feeRate > 0 && <div className="flex justify-between text-[var(--danger)]"><span>Taxa da maquininha ({feeRate}%)</span><span>{money(feeAmount)}</span></div>}
+          <div className="flex justify-between text-base font-bold text-[var(--ink)]"><span>Total cobrado</span><span>{money(total)}</span></div>
+          <div className="flex justify-between text-xs text-[var(--muted)]"><span>Valor líquido recebido</span><span>{money(netReceived)}</span></div>
+        </div>
+
+        <Btn className="mt-4 w-full" onClick={finalize} disabled={cart.length === 0}>
+          <Icon name="ShoppingCart" size={16} /> Finalizar venda
+        </Btn>
+      </div>
+
+      {newClientModal && (
+        <Modal title="Novo cliente" onClose={() => setNewClientModal(false)} wide>
+          <form onSubmit={saveNewClient} className="space-y-4">
+            <ClientFormFields form={newClientForm} setForm={setNewClientForm} compact />
+            <p className="text-xs text-[var(--muted-2)]">Você pode completar o restante do cadastro depois, na aba Clientes.</p>
+            <Btn type="submit" className="w-full"><Icon name="Save" size={16} /> Salvar e selecionar</Btn>
+          </form>
+        </Modal>
+      )}
+
+      {done && (
+        <Modal title="Venda concluída" onClose={() => setDone(null)}>
+          <div className="text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--success-soft)] text-[var(--success)]"><Icon name="Check" size={26} /></div>
+            <p className="font-display text-xl font-semibold text-[var(--ink)]">{money(done.total)}</p>
+            <p className="text-sm text-[var(--muted)]">{done.clientName} · {paymentOpts.find(p => p.key === done.payment)?.label}</p>
+            <Btn className="mt-5 w-full" onClick={() => setDone(null)}>Nova venda</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Vendas (histórico, editar, excluir) ---------------- */
+
+const PAYMENT_LABELS = { dinheiro: "Dinheiro", pix: "Pix", debito: "Débito", creditoVista: "Crédito à vista", creditoParcelado: "Crédito parcelado" };
+
+function SaleEditor({ sale, services, inventory, clients, settings, onCancel, onSave }) {
+  const [form, setForm] = useState(sale);
+
+  const changeQty = (id, delta) => setForm((f) => ({
+    ...f,
+    items: f.items.map((i) => (i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)).filter((i) => i.qty > 0),
+  }));
+  const removeItem = (id) => setForm((f) => ({ ...f, items: f.items.filter((i) => i.id !== id) }));
+  const addItem = (item, type) => setForm((f) => {
+    const found = f.items.find((i) => i.refId === item.id && i.type === type);
+    const items = found
+      ? f.items.map((i) => (i === found ? { ...i, qty: i.qty + 1 } : i))
+      : [...f.items, { id: uid(), refId: item.id, type, name: item.name, price: item.price, qty: 1 }];
+    return { ...f, items };
+  });
+
+  const subtotal = form.items.reduce((a, i) => a + i.price * i.qty, 0);
+  const feeRate = form.payment === "debito" ? settings.fees.debito : form.payment === "creditoVista" ? settings.fees.creditoVista : form.payment === "creditoParcelado" ? settings.fees.creditoParcelado : form.payment === "pix" ? settings.fees.pix : 0;
+  const feeAmount = subtotal * (feeRate / 100);
+  const total = form.passFee ? subtotal + feeAmount : subtotal;
+  const netReceived = form.passFee ? subtotal : subtotal - feeAmount;
+
+  const save = () => {
+    const client = clients.find((c) => c.id === form.clientId);
+    onSave({ ...form, subtotal, feeRate, feeAmount, total, netReceived, clientName: client?.name || form.clientName || "Cliente avulso" });
+  };
+
+  const sellableProducts = inventory.filter((i) => i.sellable);
+
+  return (
+    <Modal title="Editar venda" onClose={onCancel} wide>
+      <div className="space-y-4">
+        <Field label="Cliente">
+          <select value={form.clientId || ""} onChange={(e) => setForm({ ...form, clientId: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+            <option value="">Cliente avulso</option>
+            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </Field>
+
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Itens da venda</p>
+          <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-[var(--border-soft)] p-3">
+            {form.items.map((i) => (
+              <div key={i.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex-1 text-[var(--ink)]">{i.name}</span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => changeQty(i.id, -1)} className="rounded p-1 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="Minus" size={12} /></button>
+                  <span className="w-5 text-center">{i.qty}</span>
+                  <button onClick={() => changeQty(i.id, 1)} className="rounded p-1 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="Plus" size={12} /></button>
+                </div>
+                <span className="w-16 text-right font-medium text-[var(--ink)]">{money(i.price * i.qty)}</span>
+                <button onClick={() => removeItem(i.id)} className="text-[var(--danger)]"><Icon name="X" size={14} /></button>
+              </div>
+            ))}
+            {form.items.length === 0 && <p className="text-sm text-[var(--muted)]">Nenhum item. Adicione abaixo.</p>}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {services.slice(0, 6).map((s) => (
+              <button key={s.id} onClick={() => addItem(s, "servico")} className="rounded-full bg-[var(--cream-2)] px-3 py-1 text-xs font-medium text-[var(--clay-dark)] hover:bg-[var(--cream-3)]">+ {s.name}</button>
+            ))}
+            {sellableProducts.slice(0, 4).map((p) => (
+              <button key={p.id} onClick={() => addItem(p, "produto")} className="rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-medium text-[var(--success)] hover:opacity-80">+ {p.name}</button>
+            ))}
+          </div>
+        </div>
+
+        <Field label="Forma de pagamento">
+          <select value={form.payment} onChange={(e) => setForm({ ...form, payment: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+            {Object.entries(PAYMENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </Field>
+
+        {feeRate > 0 && (
+          <label className="flex items-center gap-2 text-xs text-[var(--ink-soft)]">
+            <input type="checkbox" checked={form.passFee} onChange={(e) => setForm({ ...form, passFee: e.target.checked })} />
+            Repassar taxa da maquininha ({feeRate}%) ao cliente
+          </label>
+        )}
+
+        <div className="space-y-1.5 border-t border-[var(--border-soft)] pt-4 text-sm">
+          <div className="flex justify-between text-[var(--ink-soft)]"><span>Subtotal</span><span>{money(subtotal)}</span></div>
+          {feeRate > 0 && <div className="flex justify-between text-[var(--danger)]"><span>Taxa da maquininha</span><span>{money(feeAmount)}</span></div>}
+          <div className="flex justify-between text-base font-bold text-[var(--ink)]"><span>Total</span><span>{money(total)}</span></div>
+        </div>
+
+        <Btn className="w-full" onClick={save}><Icon name="Save" size={16} /> Salvar alterações</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+function SalesPage({ sales, setSales, inventory, setInventory, services, clients, settings }) {
+  const [editing, setEditing] = useState(null);
+  const [q, setQ] = useState("");
+  const [dayFilter, setDayFilter] = useState("");
+
+  const filtered = sales
+    .filter((s) => (dayFilter ? s.date === dayFilter : true))
+    .filter((s) => (s.clientName || "").toLowerCase().includes(q.toLowerCase()));
+
+  const restockFromSale = (sale, inv) => inv.map((i) => {
+    const used = sale.items.find((c) => c.type === "produto" && c.refId === i.id);
+    return used ? { ...i, qty: Number(i.qty) + Number(used.qty) } : i;
+  });
+  const deductForSale = (sale, inv) => inv.map((i) => {
+    const used = sale.items.find((c) => c.type === "produto" && c.refId === i.id);
+    return used ? { ...i, qty: Math.max(0, Number(i.qty) - Number(used.qty)) } : i;
+  });
+
+  const remove = (sale) => {
+    setInventory(restockFromSale(sale, inventory));
+    setSales(sales.filter((s) => s.id !== sale.id));
+  };
+
+  const saveEdit = (updated) => {
+    let inv = restockFromSale(editing, inventory); // devolve as quantidades da venda antiga
+    inv = deductForSale(updated, inv); // aplica as quantidades da venda nova
+    setInventory(inv);
+    setSales(sales.map((s) => (s.id === updated.id ? updated : s)));
+    setEditing(null);
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-2xl font-semibold text-[var(--ink)]">Vendas</h2>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        <div className="relative max-w-xs flex-1">
+          <Icon name="Search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-2)]" />
+          <Input placeholder="Buscar por cliente" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
+        </div>
+        <Input type="date" value={dayFilter} onChange={(e) => setDayFilter(e.target.value)} className="w-auto" />
+        {dayFilter && <button onClick={() => setDayFilter("")} className="rounded-xl bg-[var(--cream-2)] px-3.5 py-2 text-xs font-semibold text-[var(--clay-dark)]">Limpar data</button>}
+      </div>
+
+      {filtered.length === 0 ? (
+        <Empty icon="Receipt" text="Nenhuma venda encontrada." />
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-[var(--border-soft)] bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--cream)] text-left text-xs uppercase tracking-wide text-[var(--muted)]">
+              <tr><th className="px-5 py-3">Data</th><th className="px-5 py-3">Cliente</th><th className="px-5 py-3">Itens</th><th className="px-5 py-3">Pagamento</th><th className="px-5 py-3">Total</th><th className="px-5 py-3"></th></tr>
+            </thead>
+            <tbody>
+              {filtered.map((s) => (
+                <tr key={s.id} className="border-t border-[var(--border-soft)] hover:bg-[var(--cream)]/60">
+                  <td className="px-5 py-3 text-[var(--ink-soft)]">{new Date(s.date + "T00:00:00").toLocaleDateString("pt-BR")} {s.time}</td>
+                  <td className="px-5 py-3 font-medium text-[var(--ink)]">{s.clientName}</td>
+                  <td className="px-5 py-3 text-xs text-[var(--muted)]">{s.items.map((i) => `${i.qty}x ${i.name}`).join(", ")}</td>
+                  <td className="px-5 py-3 text-[var(--ink-soft)]">{PAYMENT_LABELS[s.payment] || s.payment}</td>
+                  <td className="px-5 py-3 font-semibold text-[var(--clay)]">{money(s.total)}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex justify-end gap-1">
+                      <button onClick={() => setEditing(s)} className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="Pencil" size={14} /></button>
+                      <button onClick={() => remove(s)} className="rounded-lg p-2 text-[var(--danger)] hover:bg-[var(--danger-soft)]"><Icon name="Trash2" size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {editing && (
+        <SaleEditor sale={editing} services={services} inventory={inventory} clients={clients} settings={settings} onCancel={() => setEditing(null)} onSave={saveEdit} />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Despesas ---------------- */
+
+const EXPENSE_CATEGORIES = ["Aluguel", "Contas (água/luz/internet)", "Produtos/Insumos", "Marketing", "Salários/Comissões", "Manutenção", "Impostos", "Outros"];
+
+function ExpensesPage({ expenses, setExpenses }) {
+  const [modal, setModal] = useState(null);
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth());
+  const [year, setYear] = useState(now.getFullYear());
+  const empty = { date: today(), description: "", category: "Produtos/Insumos", amount: "", notes: "" };
+  const [form, setForm] = useState(empty);
+
+  const ym = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const filtered = expenses.filter((e) => e.date.startsWith(ym)).sort((a, b) => b.date.localeCompare(a.date));
+  const total = filtered.reduce((a, e) => a + Number(e.amount), 0);
+  const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i);
+
+  const openNew = () => { setForm(empty); setModal("edit"); };
+  const submit = (e) => {
+    e.preventDefault();
+    const data = { ...form, amount: Number(form.amount) || 0 };
+    if (form.id) setExpenses(expenses.map((x) => (x.id === form.id ? data : x)));
+    else setExpenses([{ ...data, id: uid() }, ...expenses]);
+    setModal(null);
+  };
+  const remove = (id) => setExpenses(expenses.filter((e) => e.id !== id));
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-2xl font-semibold text-[var(--ink)]">Despesas</h2>
+        <Btn onClick={openNew}><Icon name="Plus" size={16} /> Nova despesa</Btn>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--ink-soft)] outline-none focus:border-[var(--clay)]">
+          {MONTH_NAMES.map((m, i) => <option key={m} value={i}>{m}</option>)}
+        </select>
+        <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--ink-soft)] outline-none focus:border-[var(--clay)]">
+          {years.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+
+      <div className="rounded-2xl border border-[var(--border-soft)] bg-white p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Total gasto em {MONTH_NAMES[month]}/{year}</p>
+        <p className="mt-1 font-display text-2xl font-semibold text-[var(--danger)]">{money(total)}</p>
+      </div>
+
+      {filtered.length === 0 ? (
+        <Empty icon="TrendingDown" text="Nenhuma despesa lançada neste mês." />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--cream)] text-left text-xs uppercase tracking-wide text-[var(--muted)]">
+              <tr><th className="px-5 py-3">Data</th><th className="px-5 py-3">Descrição</th><th className="px-5 py-3">Categoria</th><th className="px-5 py-3">Valor</th><th className="px-5 py-3"></th></tr>
+            </thead>
+            <tbody>
+              {filtered.map((e) => (
+                <tr key={e.id} className="border-t border-[var(--border-soft)] hover:bg-[var(--cream)]/60">
+                  <td className="px-5 py-3 text-[var(--ink-soft)]">{new Date(e.date + "T00:00:00").toLocaleDateString("pt-BR")}</td>
+                  <td className="px-5 py-3 font-medium text-[var(--ink)]">{e.description}</td>
+                  <td className="px-5 py-3 text-xs text-[var(--muted)]">{e.category}</td>
+                  <td className="px-5 py-3 font-semibold text-[var(--danger)]">{money(e.amount)}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex justify-end gap-1">
+                      <button onClick={() => { setForm(e); setModal("edit"); }} className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="Pencil" size={14} /></button>
+                      <button onClick={() => remove(e.id)} className="rounded-lg p-2 text-[var(--danger)] hover:bg-[var(--danger-soft)]"><Icon name="Trash2" size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {modal === "edit" && (
+        <Modal title={form.id ? "Editar despesa" : "Nova despesa"} onClose={() => setModal(null)}>
+          <form onSubmit={submit} className="space-y-4">
+            <Field label="Descrição"><Input required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Data"><Input type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
+              <Field label="Valor (R$)"><Input type="number" step="0.01" required value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
+            </div>
+            <Field label="Categoria">
+              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+                {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="Observações"><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Opcional" /></Field>
+            <Btn type="submit" className="w-full"><Icon name="Save" size={16} /> Salvar despesa</Btn>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Settings ---------------- */
+
+function SettingsPage({ settings, setSettings, currentUser }) {
+  const [tab, setTab] = useState("geral");
+  const [local, setLocal] = useState(settings);
+  const [userModal, setUserModal] = useState(null);
+  const emptyUser = { name: "", username: "", password: "", role: "atendente", perms: { dashboard: true, clientes: true, servicos: false, estoque: false, caixa: true, agenda: true, vendas: false, despesas: false, configuracoes: false } };
+  const [userForm, setUserForm] = useState(emptyUser);
+
+  useEffect(() => setLocal(settings), [settings]);
+
+  const persist = (next) => { setLocal(next); setSettings(next); };
+
+  const [logoFile, setLogoFile] = useState(null);
+  const onLogoPick = (e) => {
+    const file = e.target.files[0];
+    if (file) setLogoFile(file);
+    e.target.value = "";
+  };
+
+  const saveUser = (e) => {
+    e.preventDefault();
+    const users = userForm.id ? local.users.map((u) => (u.id === userForm.id ? userForm : u)) : [...local.users, { ...userForm, id: uid() }];
+    persist({ ...local, users });
+    setUserModal(null);
+  };
+  const removeUser = (id) => persist({ ...local, users: local.users.filter((u) => u.id !== id) });
+
+  const setColor = (key, value) => persist({ ...local, theme: { ...(local.theme || DEFAULT_THEME), colors: { ...(local.theme?.colors || DEFAULT_THEME.colors), [key]: value } } });
+  const resetTheme = () => persist({ ...local, theme: DEFAULT_THEME });
+
+  const tabs = [
+    { key: "geral", label: "Geral" },
+    { key: "horarios", label: "Horários" },
+    { key: "taxas", label: "Taxas de cartão" },
+    { key: "aparencia", label: "Aparência" },
+    { key: "usuarios", label: "Usuários e permissões" },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <h2 className="font-display text-2xl font-semibold text-[var(--ink)]">Configurações</h2>
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((t) => (
+          <button key={t.key} onClick={() => setTab(t.key)} className={`rounded-xl px-4 py-2 text-sm font-semibold ${tab === t.key ? "bg-[var(--clay)] text-white" : "bg-[var(--cream-2)] text-[var(--clay-dark)]"}`}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab === "geral" && (
+        <div className="max-w-lg space-y-4 rounded-2xl border border-[var(--border-soft)] bg-white p-6">
+          <div className="flex items-center gap-4">
+            {local.logo ? <img src={local.logo} className="h-16 w-16 rounded-full object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--cream-2)] text-[var(--clay)]"><Icon name="Scissors" size={22} /></div>}
+            <label className="cursor-pointer">
+              <span className="inline-flex items-center gap-2 rounded-xl bg-[var(--cream-2)] px-4 py-2 text-sm font-semibold text-[var(--clay-dark)] hover:bg-[var(--cream-3)]"><Icon name="Upload" size={14} /> Trocar logo</span>
+              <input type="file" accept="image/*" className="hidden" onChange={onLogoPick} />
+            </label>
+          </div>
+          <Field label="Nome da clínica"><Input value={local.clinicName} onChange={(e) => persist({ ...local, clinicName: e.target.value })} /></Field>
+          <Field label="Endereço"><Input value={local.address} onChange={(e) => persist({ ...local, address: e.target.value })} /></Field>
+          <Field label="WhatsApp"><Input value={local.whatsapp} onChange={(e) => persist({ ...local, whatsapp: e.target.value })} /></Field>
+        </div>
+      )}
+
+      {tab === "horarios" && (
+        <div className="max-w-lg space-y-2 rounded-2xl border border-[var(--border-soft)] bg-white p-6">
+          {WEEKDAYS.map(([key, label]) => (
+            <div key={key} className="flex items-center gap-3 border-b border-[var(--border-soft)] py-2.5 last:border-0">
+              <input type="checkbox" checked={local.hours[key].open} onChange={(e) => persist({ ...local, hours: { ...local.hours, [key]: { ...local.hours[key], open: e.target.checked } } })} />
+              <span className="w-24 text-sm font-medium text-[var(--ink)]">{label}</span>
+              {local.hours[key].open ? (
+                <>
+                  <input type="time" value={local.hours[key].from} onChange={(e) => persist({ ...local, hours: { ...local.hours, [key]: { ...local.hours[key], from: e.target.value } } })} className="rounded-lg border border-[var(--border)] px-2 py-1 text-sm" />
+                  <span className="text-[var(--muted)]">até</span>
+                  <input type="time" value={local.hours[key].to} onChange={(e) => persist({ ...local, hours: { ...local.hours, [key]: { ...local.hours[key], to: e.target.value } } })} className="rounded-lg border border-[var(--border)] px-2 py-1 text-sm" />
+                </>
+              ) : <span className="text-sm text-[var(--muted-2)]">Fechado</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "taxas" && (
+        <div className="max-w-lg space-y-4 rounded-2xl border border-[var(--border-soft)] bg-white p-6">
+          <p className="text-sm text-[var(--muted)]">Defina o percentual cobrado pela sua maquininha para cada modalidade. O sistema soma isso automaticamente na Frente de Caixa.</p>
+          {[["debito", "Débito"], ["creditoVista", "Crédito à vista"], ["creditoParcelado", "Crédito parcelado"], ["pix", "Pix"]].map(([key, label]) => (
+            <Field key={key} label={label}>
+              <div className="relative">
+                <Input type="number" step="0.01" value={local.fees[key]} onChange={(e) => persist({ ...local, fees: { ...local.fees, [key]: Number(e.target.value) } })} className="pr-8" />
+                <Icon name="Percent" size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-2)]" />
+              </div>
+            </Field>
+          ))}
+          <label className="flex items-center gap-2 text-sm text-[var(--ink-soft)]">
+            <input type="checkbox" checked={local.passFeeToClient} onChange={(e) => persist({ ...local, passFeeToClient: e.target.checked })} />
+            Repassar taxa ao cliente por padrão
+          </label>
+        </div>
+      )}
+
+      {tab === "aparencia" && (
+        <div className="max-w-3xl space-y-5">
+          <div className="rounded-2xl border border-[var(--border-soft)] bg-white p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 font-display text-base font-semibold text-[var(--ink)]"><Icon name="Palette" size={17} /> Fontes</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Fonte dos títulos">
+                <select value={local.theme?.fontDisplay || DEFAULT_THEME.fontDisplay} onChange={(e) => persist({ ...local, theme: { ...(local.theme || DEFAULT_THEME), fontDisplay: e.target.value } })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+                  {FONT_OPTIONS_DISPLAY.map((f) => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </Field>
+              <Field label="Fonte do texto">
+                <select value={local.theme?.fontBody || DEFAULT_THEME.fontBody} onChange={(e) => persist({ ...local, theme: { ...(local.theme || DEFAULT_THEME), fontBody: e.target.value } })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--clay)]">
+                  {FONT_OPTIONS_BODY.map((f) => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </Field>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[var(--border-soft)] bg-white p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 font-display text-base font-semibold text-[var(--ink)]"><Icon name="Palette" size={17} /> Cores do sistema</h3>
+              <button onClick={resetTheme} className="flex items-center gap-1.5 rounded-lg bg-[var(--cream-2)] px-3 py-1.5 text-xs font-semibold text-[var(--clay-dark)] hover:bg-[var(--cream-3)]">
+                <Icon name="RotateCcw" size={13} /> Restaurar padrão
+              </button>
+            </div>
+            <div className="space-y-5">
+              {THEME_LABELS.map((group) => (
+                <div key={group.group}>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{group.group}</p>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {group.keys.map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-2.5 py-2">
+                        <input type="color" value={(local.theme?.colors || DEFAULT_THEME.colors)[key]} onChange={(e) => setColor(key, e.target.value)} className="h-7 w-7 shrink-0 cursor-pointer rounded border-0 bg-transparent" />
+                        <span className="truncate text-xs text-[var(--ink-soft)]">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "usuarios" && (
+        <div className="space-y-4">
+          <Btn onClick={() => { setUserForm(emptyUser); setUserModal(true); }}><Icon name="UserPlus" size={16} /> Novo usuário</Btn>
+          <div className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-[var(--cream)] text-left text-xs uppercase tracking-wide text-[var(--muted)]">
+                <tr><th className="px-5 py-3">Nome</th><th className="px-5 py-3">Usuário</th><th className="px-5 py-3">Função</th><th className="px-5 py-3"></th></tr>
+              </thead>
+              <tbody>
+                {local.users.map((u) => (
+                  <tr key={u.id} className="border-t border-[var(--border-soft)]">
+                    <td className="px-5 py-3 font-medium text-[var(--ink)]">{u.name}</td>
+                    <td className="px-5 py-3 text-[var(--ink-soft)]">{u.username}</td>
+                    <td className="px-5 py-3 capitalize text-[var(--ink-soft)]">{u.role}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex justify-end gap-1">
+                        <button onClick={() => { setUserForm(u); setUserModal(true); }} className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--cream-2)]"><Icon name="Pencil" size={14} /></button>
+                        {u.id !== currentUser.id && <button onClick={() => removeUser(u.id)} className="rounded-lg p-2 text-[var(--danger)] hover:bg-[var(--danger-soft)]"><Icon name="Trash2" size={14} /></button>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {userModal && (
+        <Modal title={userForm.id ? "Editar usuário" : "Novo usuário"} onClose={() => setUserModal(null)}>
+          <form onSubmit={saveUser} className="space-y-4">
+            <Field label="Nome"><Input required value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Usuário (login)"><Input required value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} /></Field>
+              <Field label="Senha"><Input required value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} /></Field>
+            </div>
+            <Field label="Função">
+              <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-sm">
+                {["admin", "gerente", "atendente", "caixa"].map((r) => <option key={r}>{r}</option>)}
+              </select>
+            </Field>
+            <Field label="Permissões de acesso">
+              <div className="grid grid-cols-2 gap-2">
+                {MODULES.map((m) => (
+                  <label key={m.key} className="flex items-center gap-2 text-sm text-[var(--ink-soft)]">
+                    <input type="checkbox" checked={!!userForm.perms[m.key]} onChange={(e) => setUserForm({ ...userForm, perms: { ...userForm.perms, [m.key]: e.target.checked } })} />
+                    {m.label}
+                  </label>
+                ))}
+              </div>
+            </Field>
+            <Btn type="submit" className="w-full"><Icon name="Save" size={16} /> Salvar usuário</Btn>
+          </form>
+        </Modal>
+      )}
+
+      {logoFile && (
+        <ImageCropper
+          file={logoFile}
+          viewportW={260} viewportH={260} outW={480} outH={480}
+          round
+          title="Ajustar logomarca"
+          onCancel={() => setLogoFile(null)}
+          onConfirm={(dataUrl) => { persist({ ...local, logo: dataUrl }); setLogoFile(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- App shell ---------------- */
+
+function App() {
+  const [loading, setLoading] = useState(true);
+  const [settings, setSettingsState] = useState(DEFAULT_SETTINGS);
+  const [clients, setClientsState] = useState([]);
+  const [services, setServicesState] = useState([]);
+  const [inventory, setInventoryState] = useState([]);
+  const [sales, setSalesState] = useState([]);
+  const [appointments, setAppointmentsState] = useState([]);
+  const [expenses, setExpensesState] = useState([]);
+  const [user, setUser] = useState(null);
+  const [page, setPage] = useState("dashboard");
+  const [navOpen, setNavOpen] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const [s, c, sv, inv, sl, ap, ex] = await Promise.all([
+        load("lia:settings", DEFAULT_SETTINGS),
+        load("lia:clients", []),
+        load("lia:services", []),
+        load("lia:inventory", []),
+        load("lia:sales", []),
+        load("lia:appointments", []),
+        load("lia:expenses", []),
+      ]);
+      setSettingsState({ ...DEFAULT_SETTINGS, ...s, theme: { ...DEFAULT_THEME, ...(s.theme || {}), colors: { ...DEFAULT_THEME.colors, ...(s.theme?.colors || {}) } } });
+      setClientsState(c); setServicesState(sv); setInventoryState(inv); setSalesState(sl); setAppointmentsState(ap); setExpensesState(ex);
+      setLoading(false);
+    })();
+  }, []);
+
+  const setSettings = (v) => { setSettingsState(v); save("lia:settings", v); };
+  const setClients = (v) => { setClientsState(v); save("lia:clients", v); };
+  const setServices = (v) => { setServicesState(v); save("lia:services", v); };
+  const setInventory = (v) => { setInventoryState(v); save("lia:inventory", v); };
+  const setSales = (v) => { setSalesState(v); save("lia:sales", v); };
+  const setAppointments = (v) => { setAppointmentsState(v); save("lia:appointments", v); };
+  const setExpenses = (v) => { setExpensesState(v); save("lia:expenses", v); };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--cream)]">
+        <style>{buildThemeCSS(DEFAULT_THEME)}</style>
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--border-soft)] border-t-[var(--clay)]" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (<><style>{buildThemeCSS(settings.theme)}</style><Login settings={settings} onLogin={setUser} /></>);
+  }
+
+  const visibleModules = MODULES.filter((m) => user.role === "admin" || user.perms[m.key]);
+  const icons = { dashboard: "LayoutDashboard", clientes: "Users", agenda: "Calendar", servicos: "Scissors", estoque: "Package", caixa: "ShoppingCart", vendas: "Receipt", despesas: "TrendingDown", configuracoes: "SettingsIcon" };
+
+  return (
+    <div className="min-h-screen bg-[var(--cream)]">
+      <style>{buildThemeCSS(settings.theme)}</style>
+
+      <div className="flex min-h-screen">
+        {/* Sidebar */}
+        <aside className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-white border-r border-[var(--border-soft)] transition-transform lg:static lg:translate-x-0 ${navOpen ? "translate-x-0" : "-translate-x-full"}`}>
+          <div className="flex items-center gap-3 border-b border-[var(--border-soft)] px-5 py-5">
+            {settings.logo ? <img src={settings.logo} className="h-10 w-10 rounded-full object-cover" /> : <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--clay)] text-white"><Icon name="Scissors" size={18} /></div>}
+            <div className="min-w-0">
+              <p className="truncate font-display text-sm font-semibold text-[var(--ink)]">{settings.clinicName}</p>
+              <p className="text-[11px] text-[var(--muted-2)]">{user.name} · {user.role}</p>
+            </div>
+          </div>
+          <nav className="space-y-1 p-3">
+            {visibleModules.map((m) => {
+              return (
+                <button key={m.key} onClick={() => { setPage(m.key); setNavOpen(false); }}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors ${page === m.key ? "bg-[var(--clay)] text-white" : "text-[var(--ink-soft)] hover:bg-[var(--cream-2)]"}`}>
+                  <Icon name={icons[m.key]} size={17} /> {m.label}
+                </button>
+              );
+            })}
+          </nav>
+          <div className="absolute bottom-0 w-full border-t border-[var(--border-soft)] p-3">
+            <button onClick={() => setUser(null)} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)]">
+              <Icon name="LogOut" size={17} /> Sair
+            </button>
+          </div>
+        </aside>
+
+        {navOpen && <div className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setNavOpen(false)} />}
+
+        {/* Main */}
+        <main className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 border-b border-[var(--border-soft)] bg-white px-5 py-3 lg:hidden">
+            <button onClick={() => setNavOpen(true)} className="rounded-lg p-2 text-[var(--clay-dark)] hover:bg-[var(--cream-2)]"><Icon name="ChevronRight" size={18} /></button>
+            <p className="font-display text-sm font-semibold text-[var(--ink)]">{settings.clinicName}</p>
+          </div>
+          <div className="p-5 lg:p-8">
+            {page === "dashboard" && <Dashboard clients={clients} services={services} inventory={inventory} sales={sales} expenses={expenses} />}
+            {page === "clientes" && <Clients clients={clients} setClients={setClients} />}
+            {page === "agenda" && <Agenda appointments={appointments} setAppointments={setAppointments} clients={clients} setClients={setClients} services={services} />}
+            {page === "servicos" && <ServicesPage services={services} setServices={setServices} />}
+            {page === "estoque" && <InventoryPage inventory={inventory} setInventory={setInventory} />}
+            {page === "caixa" && <POS services={services} inventory={inventory} setInventory={setInventory} clients={clients} setClients={setClients} sales={sales} setSales={setSales} settings={settings} />}
+            {page === "vendas" && <SalesPage sales={sales} setSales={setSales} inventory={inventory} setInventory={setInventory} services={services} clients={clients} settings={settings} />}
+            {page === "despesas" && <ExpensesPage expenses={expenses} setExpenses={setExpenses} />}
+            {page === "configuracoes" && <SettingsPage settings={settings} setSettings={setSettings} currentUser={user} />}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
