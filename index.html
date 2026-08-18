@@ -1591,6 +1591,7 @@ function SettingsPage({ settings, setSettings, currentUser }) {
           <Field label="Nome da clínica"><Input value={local.clinicName} onChange={(e) => persist({ ...local, clinicName: e.target.value })} /></Field>
           <Field label="Endereço"><Input value={local.address} onChange={(e) => persist({ ...local, address: e.target.value })} /></Field>
           <Field label="WhatsApp"><Input value={local.whatsapp} onChange={(e) => persist({ ...local, whatsapp: e.target.value })} /></Field>
+          <Btn onClick={() => persist(local)}><Icon name="Save" size={16} /> Salvar alterações</Btn>
         </div>
       )}
 
@@ -1609,6 +1610,7 @@ function SettingsPage({ settings, setSettings, currentUser }) {
               ) : <span className="text-sm text-[var(--muted-2)]">Fechado</span>}
             </div>
           ))}
+          <Btn className="mt-3" onClick={() => persist(local)}><Icon name="Save" size={16} /> Salvar alterações</Btn>
         </div>
       )}
 
@@ -1627,6 +1629,7 @@ function SettingsPage({ settings, setSettings, currentUser }) {
             <input type="checkbox" checked={local.passFeeToClient} onChange={(e) => persist({ ...local, passFeeToClient: e.target.checked })} />
             Repassar taxa ao cliente por padrão
           </label>
+          <Btn onClick={() => persist(local)}><Icon name="Save" size={16} /> Salvar alterações</Btn>
         </div>
       )}
 
@@ -1673,6 +1676,8 @@ function SettingsPage({ settings, setSettings, currentUser }) {
               ))}
             </div>
           </div>
+
+          <Btn onClick={() => persist(local)}><Icon name="Save" size={16} /> Salvar alterações</Btn>
         </div>
       )}
 
@@ -1808,15 +1813,15 @@ function App() {
 
       <div className="flex min-h-screen">
         {/* Sidebar */}
-        <aside className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-white border-r border-[var(--border-soft)] transition-transform lg:static lg:translate-x-0 ${navOpen ? "translate-x-0" : "-translate-x-full"}`}>
-          <div className="flex items-center gap-3 border-b border-[var(--border-soft)] px-5 py-5">
+        <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col overflow-y-auto bg-white border-r border-[var(--border-soft)] transition-transform lg:static lg:translate-x-0 ${navOpen ? "translate-x-0" : "-translate-x-full"}`}>
+          <div className="flex items-center gap-3 border-b border-[var(--border-soft)] px-5 pb-5" style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}>
             {settings.logo ? <img src={settings.logo} className="h-10 w-10 rounded-full object-cover" /> : <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--clay)] text-white"><Icon name="Scissors" size={18} /></div>}
             <div className="min-w-0">
               <p className="truncate font-display text-sm font-semibold text-[var(--ink)]">{settings.clinicName}</p>
               <p className="text-[11px] text-[var(--muted-2)]">{user.name} · {user.role}</p>
             </div>
           </div>
-          <nav className="space-y-1 p-3">
+          <nav className="flex-1 space-y-1 p-3">
             {visibleModules.map((m) => {
               return (
                 <button key={m.key} onClick={() => { setPage(m.key); setNavOpen(false); }}
@@ -1826,7 +1831,7 @@ function App() {
               );
             })}
           </nav>
-          <div className="absolute bottom-0 w-full border-t border-[var(--border-soft)] p-3">
+          <div className="w-full border-t border-[var(--border-soft)] p-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
             <button onClick={() => setUser(null)} className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)]">
               <Icon name="LogOut" size={17} /> Sair
             </button>
@@ -1837,11 +1842,11 @@ function App() {
 
         {/* Main */}
         <main className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 border-b border-[var(--border-soft)] bg-white px-5 py-3 lg:hidden">
+          <div className="flex items-center gap-3 border-b border-[var(--border-soft)] bg-white px-5 pb-3 lg:hidden" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
             <button onClick={() => setNavOpen(true)} className="rounded-lg p-2 text-[var(--clay-dark)] hover:bg-[var(--cream-2)]"><Icon name="ChevronRight" size={18} /></button>
             <p className="font-display text-sm font-semibold text-[var(--ink)]">{settings.clinicName}</p>
           </div>
-          <div className="p-5 lg:p-8">
+          <div className="p-5 lg:p-8" style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}>
             {page === "dashboard" && <Dashboard clients={clients} services={services} inventory={inventory} sales={sales} expenses={expenses} />}
             {page === "clientes" && <Clients clients={clients} setClients={setClients} />}
             {page === "agenda" && <Agenda appointments={appointments} setAppointments={setAppointments} clients={clients} setClients={setClients} services={services} />}
